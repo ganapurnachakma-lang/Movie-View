@@ -1,1388 +1,733 @@
+
 <!DOCTYPE html>
 <html lang="bn">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Click2Cash - আয়ের অ্যাপ</title>
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Font Awesome Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <!-- Google Fonts for Bengali -->
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Movie App</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Noto Sans Bengali', sans-serif;
+        /* --- General Styles --- */
+        :root {
+            --primary-blue: #0A84FF;
+            --background-color: #F6F7F9;
+            --card-bg: #FFFFFF;
+            --text-dark: #1A1A1A;
+            --text-light: #8E8E93;
+            --card-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+            --safe-area-top: env(safe-area-inset-top);
+            --safe-area-bottom: env(safe-area-inset-bottom);
         }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Poppins', sans-serif; -webkit-tap-highlight-color: transparent; }
+        body { background-color: var(--background-color); color: var(--text-dark); overscroll-behavior-y: contain; }
         
-        body {
-            background: linear-gradient(135deg, #87CEEB, #98FB98);
-            color: #1F2937;
-            min-height: 100vh;
-            overflow-x: hidden;
-            position: relative;
+        /* --- Screen Management --- */
+        .screen-container { width: 100%; height: 100vh; position: relative; overflow: hidden; }
+        .screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: var(--background-color);
+            opacity: 0; visibility: hidden; transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+            transform: scale(1.02);
+            overflow-y: auto; -ms-overflow-style: none; scrollbar-width: none;
+            padding-bottom: calc(100px + var(--safe-area-bottom));
         }
+        .screen::-webkit-scrollbar { display: none; }
+        .screen.active { opacity: 1; visibility: visible; transform: scale(1); }
 
-        /* Dynamic Background Shapes */
-        body::before {
-            content: '';
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: 
-                radial-gradient(circle at 20% 80%, rgba(135, 206, 235, 0.3) 0%, transparent 50%),
-                radial-gradient(circle at 80% 20%, rgba(152, 251, 152, 0.3) 0%, transparent 50%),
-                radial-gradient(circle at 40% 40%, rgba(135, 206, 235, 0.2) 0%, transparent 50%),
-                radial-gradient(circle at 60% 60%, rgba(152, 251, 152, 0.2) 0%, transparent 50%);
-            z-index: -1;
+        /* --- Loading --- */
+        #loading-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: var(--background-color);
+            display: flex; justify-content: center; align-items: center;
+            z-index: 9999; transition: opacity 0.3s ease;
         }
+        .loader { border: 4px solid #f3f3f3; border-top: 4px solid var(--primary-blue); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-        /* Glassmorphism Effect */
-        .glass-card {
-            background: rgba(255, 255, 255, 0.25);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            border-radius: 20px;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        /* --- Header & Components --- */
+        .home-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 20px 10px 20px; padding-top: calc(20px + var(--safe-area-top)); }
+        
+        /* Profile Pic Style - Initially Hidden */
+        .profile-pic { 
+            width: 45px; height: 45px; border-radius: 50%; cursor: pointer; object-fit: cover; 
+            border: 2px solid #fff; box-shadow: 0 4px 10px rgba(0,0,0,0.15); 
+            background-color: #e0e0e0; transition: transform 0.2s;
+            display: none; /* Hidden for guests */
         }
+        .profile-pic:active { transform: scale(0.95); }
 
-        /* Button Styles */
-        .btn-primary {
-            background: linear-gradient(135deg, #00CED1, #20B2AA);
-            color: white;
-            border-radius: 16px;
-            padding: 14px 24px;
-            font-weight: bold;
-            transition: all 0.3s ease;
-            border: none;
-            backdrop-filter: blur(10px);
-            box-shadow: 0 4px 15px rgba(0, 206, 209, 0.3);
+        /* --- SLIDER STYLES --- */
+        .slider-container { margin: 15px 20px; height: 180px; border-radius: 16px; overflow: hidden; position: relative; box-shadow: var(--card-shadow); }
+        .slider-wrapper { display: flex; width: 100%; height: 100%; transition: transform 0.5s ease-in-out; }
+        .slide {
+            min-width: 100%; height: 100%; background-size: cover; background-position: center; background-repeat: no-repeat;
+            position: relative; display: flex; align-items: flex-end; cursor: pointer;
         }
+        .slide::after { content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.1) 60%, transparent 100%); }
+        .slide-content { position: relative; z-index: 2; padding: 15px 20px; color: white; width: 100%; }
+        .slide-title { font-size: 18px; font-weight: 700; margin-bottom: 4px; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+        .slide-genre { font-size: 12px; opacity: 0.9; text-shadow: 0 1px 2px rgba(0,0,0,0.5); }
+        .slider-dots { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; z-index: 3; }
+        .dot { width: 6px; height: 6px; background: rgba(255,255,255,0.5); border-radius: 50%; transition: 0.3s; }
+        .dot.active { background: white; width: 16px; border-radius: 3px; }
 
-        .btn-primary:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 6px 20px rgba(0, 206, 209, 0.4);
-        }
+        /* --- Sections --- */
+        .section-header { display: flex; justify-content: space-between; align-items: center; padding: 0 20px; margin-top: 25px; margin-bottom: 15px; }
+        .section-header h2 { font-size: 18px; font-weight: 600; }
+        .section-header a { font-size: 13px; color: var(--text-light); text-decoration: none; cursor: pointer; font-weight: 500; }
+        
+        .channel-list { display: flex; gap: 15px; padding: 0 20px; overflow-x: auto; scrollbar-width: none; }
+        .channel-list::-webkit-scrollbar { display: none; }
+        .channel-item { flex-shrink: 0; cursor: pointer; transition: transform 0.2s; }
+        .channel-item:active { transform: scale(0.95); }
+        .channel-item img { height: 44px; width: auto; max-width: 110px; object-fit: contain; background: white; padding: 8px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.06); }
 
-        .btn-secondary {
-            background: linear-gradient(135deg, #20B2AA, #40E0D0);
-            color: white;
-            border-radius: 16px;
-            padding: 14px 24px;
-            font-weight: bold;
-            transition: all 0.3s ease;
-            border: none;
-            backdrop-filter: blur(10px);
-            box-shadow: 0 4px 15px rgba(32, 178, 170, 0.3);
+        .movies-list { display: flex; gap: 15px; overflow-x: auto; padding: 0 20px 20px 20px; scrollbar-width: none; }
+        .movies-list::-webkit-scrollbar { display: none; }
+        .movie-card { flex-shrink: 0; width: 140px; cursor: pointer; }
+        .movie-card .poster { width: 100%; height: 200px; border-radius: 12px; overflow: hidden; box-shadow: var(--card-shadow); background: #eee; }
+        .movie-card .poster img { width: 100%; height: 100%; object-fit: cover; }
+        .movie-card-info { padding-top: 10px; }
+        .movie-card-info h3 { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .movie-card-info .meta { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; color: var(--text-light); font-size: 11px; }
+        
+        /* --- Menu & Generic Pages --- */
+        .page-header { padding: 20px 20px 10px 20px; padding-top: calc(20px + var(--safe-area-top)); font-size: 24px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+        .back-icon { cursor: pointer; font-size: 28px; padding-right: 5px; }
+        
+        .menu-hero {
+            background: linear-gradient(135deg, #0A84FF 0%, #0055D4 100%);
+            color: white; margin: 10px 20px 25px 20px; padding: 25px; border-radius: 20px; display: flex; align-items: center; box-shadow: 0 10px 30px rgba(10, 132, 255, 0.3);
         }
+        /* Menu Avatar - Initially Hidden */
+        .menu-avatar { width: 70px; height: 70px; border-radius: 50%; margin-right: 15px; border: 3px solid rgba(255,255,255,0.5); background: #fff; object-fit: cover; display: none; }
+        .menu-user-details h3 { font-size: 18px; font-weight: 600; }
+        .menu-user-details p { font-size: 12px; opacity: 0.8; }
+        
+        .menu-group { background: var(--card-bg); border-radius: 20px; margin: 0 20px 20px 20px; box-shadow: var(--card-shadow); overflow: hidden; }
+        .menu-item { display: flex; align-items: center; padding: 18px; cursor: pointer; border-bottom: 1px solid var(--background-color); transition: background 0.2s; }
+        .menu-item:active { background: #f0f0f0; }
+        .menu-item:last-child { border-bottom: none; }
+        .menu-item .icon { margin-right: 15px; width: 24px; color: var(--text-dark); display: flex; justify-content: center; }
+        .menu-item span { flex-grow: 1; font-weight: 500; font-size: 15px; }
+        .menu-item .arrow { color: var(--text-light); font-size: 18px; }
+        .menu-item.logout span { color: #FF3B30; }
+        
+        /* --- Auth Styles --- */
+        .auth-container { padding: 30px; display: flex; flex-direction: column; justify-content: center; height: 90%; }
+        .auth-header { text-align: center; margin-bottom: 40px; }
+        .auth-header h1 { font-size: 32px; font-weight: 700; margin-bottom: 10px; color: var(--text-dark); }
+        .auth-header p { color: var(--text-light); }
+        .auth-input { width: 100%; padding: 16px; background: #FFFFFF; border: 1px solid #E5E5EA; border-radius: 12px; margin-bottom: 15px; font-size: 16px; outline: none; transition: 0.3s; }
+        .auth-input:focus { border-color: var(--primary-blue); box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.1); }
+        select.auth-input { appearance: none; -webkit-appearance: none; background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238E8E93' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right 1rem center; background-size: 1em; }
+        .auth-btn { width: 100%; padding: 16px; background: var(--primary-blue); color: white; border: none; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; margin-top: 10px; box-shadow: 0 4px 12px rgba(10, 132, 255, 0.3); transition: transform 0.2s; }
+        .auth-btn:active { transform: scale(0.98); }
+        .auth-footer { margin-top: 25px; text-align: center; font-size: 14px; color: var(--text-light); }
+        .auth-link { color: var(--primary-blue); font-weight: 600; cursor: pointer; margin-left: 5px; }
 
-        .btn-secondary:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 6px 20px rgba(32, 178, 170, 0.4);
+        /* --- Details Screen --- */
+        #details-screen { background-color: #141A31; color: white; }
+        .details-bg { position: absolute; top: 0; left: 0; width: 100%; height: 65%; object-fit: cover; opacity: 0.6; }
+        .details-gradient { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(to top, #141A31 40%, transparent 80%); }
+        .details-content { position: relative; z-index: 10; padding: 20px; margin-top: 45vh; text-align: center; }
+        .details-content h1 { font-size: 30px; margin-bottom: 10px; font-weight: 700; text-shadow: 0 2px 10px rgba(0,0,0,0.5); }
+        .action-buttons-container { display: flex; flex-direction: column; gap: 15px; margin-top: 25px; padding: 0 10px; }
+        .main-btn { display: flex; justify-content: center; align-items: center; padding: 16px; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; border: none; gap: 10px; width: 100%; transition: transform 0.2s; }
+        .main-btn:active { transform: scale(0.98); }
+        #play-btn-main { background-color: #FFFFFF; color: #000000; }
+        #download-btn-main { background-color: rgba(255, 255, 255, 0.15); color: #FFFFFF; backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .meta-actions { display: flex; justify-content: center; align-items: center; gap: 10px; margin-top: 20px; }
+        .save-btn-circle { width: 50px; height: 50px; border-radius: 50%; background: rgba(255,255,255,0.1); display: flex; justify-content: center; align-items: center; cursor: pointer; border: 1px solid rgba(255,255,255,0.2); transition: background-color 0.3s; }
+        
+        /* --- List & Grid --- */
+        .listing-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px 15px; padding: 20px; }
+        .placeholder-content { display: none; flex-direction: column; align-items: center; justify-content: center; height: 60vh; text-align: center; color: var(--text-light); }
+        .placeholder-content.visible { display: flex; }
+        .placeholder-content svg { width: 60px; height: 60px; margin-bottom: 20px; opacity: 0.5; }
+        
+        /* --- Download List Styles --- */
+        .download-list-container { padding: 20px; display: flex; flex-direction: column; gap: 15px; }
+        .download-card { 
+            display: flex; align-items: center; background: #fff; border-radius: 15px; 
+            overflow: hidden; box-shadow: var(--card-shadow); cursor: pointer; height: 100px; 
+            transition: transform 0.2s; width: 100%;
         }
+        .download-card:active { transform: scale(0.98); }
+        .download-card-poster { width: 80px; height: 100%; object-fit: cover; }
+        .download-card-info { flex: 1; padding: 0 15px; display: flex; flex-direction: column; justify-content: center; }
+        .download-card-info h3 { font-size: 15px; font-weight: 600; margin-bottom: 5px; color: var(--text-dark); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .download-card-info p { font-size: 12px; color: var(--text-light); }
+        .download-actions { padding-right: 15px; display: flex; gap: 10px; }
+        .delete-btn { color: #FF3B30; padding: 8px; }
+        
+        /* --- Search --- */
+        .search-header { padding: 10px 20px; padding-top: calc(10px + var(--safe-area-top)); display: flex; gap: 10px; align-items: center; }
+        .search-input-wrapper { flex: 1; background: #EFEFF4; border-radius: 10px; display: flex; align-items: center; padding: 0 10px; }
+        .search-input { width: 100%; padding: 12px; border: none; background: transparent; outline: none; }
 
-        .btn-success {
-            background: linear-gradient(135deg, #00CED1, #20B2AA);
-            color: white;
-            border-radius: 16px;
-            padding: 14px 24px;
-            font-weight: bold;
-            transition: all 0.3s ease;
-            border: none;
-            backdrop-filter: blur(10px);
-            box-shadow: 0 4px 15px rgba(0, 206, 209, 0.3);
-        }
+        /* --- Bottom Nav --- */
+        .bottom-nav-container { position: fixed; bottom: 0; left: 0; right: 0; z-index: 100; padding: 15px; padding-bottom: calc(15px + var(--safe-area-bottom)); }
+        .bottom-nav { background: rgba(255,255,255,0.9); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); height: 65px; border-radius: 35px; display: flex; justify-content: space-around; align-items: center; box-shadow: 0 10px 40px rgba(0,0,0,0.1); padding: 0 10px; border: 1px solid rgba(255, 255, 255, 0.5); }
+        .nav-item { display: flex; flex-direction: column; align-items: center; width: 50px; cursor: pointer; justify-content: center; position: relative; }
+        .nav-item svg { width: 24px; height: 24px; color: var(--text-light); transition: 0.3s; }
+        .nav-item.active svg { color: var(--primary-blue); }
+        .nav-search-btn { width: 50px; height: 50px; background: var(--primary-blue); border-radius: 50%; display: flex; justify-content: center; align-items: center; color: white; margin-top: -25px; box-shadow: 0 8px 20px rgba(10, 132, 255, 0.4); border: 4px solid var(--card-bg); }
 
-        .btn-success:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 6px 20px rgba(0, 206, 209, 0.4);
-        }
-
-        /* Bottom Navigation */
-        .bottom-nav {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: rgba(255, 255, 255, 0.8);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            border-top: 1px solid rgba(255, 255, 255, 0.3);
-            display: flex;
-            justify-content: space-around;
-            padding: 12px 0;
-            z-index: 100;
-            box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.1);
-        }
-
-        .nav-item {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            font-size: 12px;
-            color: #64748b;
-            transition: all 0.3s ease;
-            padding: 8px 12px;
-            border-radius: 16px;
-        }
-
-        .nav-item.active {
-            color: #00CED1;
-            background: rgba(0, 206, 209, 0.1);
-        }
-
-        .nav-item i {
-            font-size: 20px;
-            margin-bottom: 4px;
-        }
-
-        /* Wheel Styles */
-        .wheel-container {
-            position: relative;
-            width: 280px;
-            height: 280px;
-            margin: 0 auto;
-        }
-
-        .wheel {
-            width: 100%;
-            height: 100%;
-            border-radius: 50%;
-            position: relative;
-            overflow: hidden;
-            transition: transform 4s cubic-bezier(0.17, 0.67, 0.83, 0.67);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            backdrop-filter: blur(10px);
-            background: rgba(255, 255, 255, 0.2);
-            border: 1px solid rgba(255, 255, 255, 0.3);
-        }
-
-        .wheel-section {
-            position: absolute;
-            width: 50%;
-            height: 50%;
-            transform-origin: bottom right;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-weight: bold;
-            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
-        }
-
-        .wheel-pointer {
-            position: absolute;
-            top: -20px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 30px;
-            height: 30px;
-            background: #00CED1;
-            clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
-            z-index: 10;
-            box-shadow: 0 4px 15px rgba(0, 206, 209, 0.3);
-        }
-
-        /* Modal Styles */
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.5);
-            z-index: 1000;
-            justify-content: center;
-            align-items: center;
-            backdrop-filter: blur(5px);
-        }
-
-        .modal-content {
-            background: rgba(255, 255, 255, 0.9);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            border-radius: 24px;
-            padding: 24px;
-            width: 90%;
-            max-width: 400px;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            animation: modalAppear 0.3s ease-out;
-        }
-
-        @keyframes modalAppear {
-            from { opacity: 0; transform: scale(0.9); }
-            to { opacity: 1; transform: scale(1); }
-        }
-
-        /* Notification Panel */
-        .notification-panel {
-            position: fixed;
-            top: 0;
-            right: -320px;
-            width: 300px;
-            height: 100%;
-            background: rgba(255, 255, 255, 0.9);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            border-left: 1px solid rgba(255, 255, 255, 0.3);
-            transition: right 0.3s ease;
-            z-index: 1000;
-            padding: 20px;
-            overflow-y: auto;
-            box-shadow: -4px 0 20px rgba(0, 0, 0, 0.1);
-        }
-
-        .notification-panel.active {
-            right: 0;
-        }
-
-        /* Content Sections */
-        .content-section {
-            display: none;
-        }
-
-        .content-section.active {
-            display: block;
-        }
-
-        /* Progress Bar */
-        .progress-bar {
-            width: 100%;
-            height: 10px;
-            background: rgba(255, 255, 255, 0.3);
-            border-radius: 5px;
-            overflow: hidden;
-        }
-
-        .progress {
-            height: 100%;
-            background: linear-gradient(90deg, #00CED1, #20B2AA);
-            border-radius: 5px;
-            transition: width 0.3s ease;
-        }
-
-        /* Task Items */
-        .task-item {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 16px;
-            margin-bottom: 12px;
-            background: rgba(255, 255, 255, 0.3);
-            backdrop-filter: blur(10px);
-            border-radius: 16px;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            transition: all 0.3s ease;
-        }
-
-        .task-item:hover {
-            background: rgba(255, 255, 255, 0.4);
-            transform: translateY(-3px);
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
-        }
-
-        /* Auth Pages */
-        .auth-container {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            padding: 20px;
-            background: linear-gradient(135deg, #87CEEB, #98FB98);
-        }
-
-        .auth-card {
-            width: 100%;
-            max-width: 400px;
-            padding: 30px;
-            background: rgba(255, 255, 255, 0.25);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            border-radius: 24px;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-        }
-
-        /* Input Fields */
-        input, select {
-            background: rgba(255, 255, 255, 0.7) !important;
-            backdrop-filter: blur(10px);
-            border-radius: 12px !important;
-            border: 1px solid rgba(255, 255, 255, 0.3) !important;
-            transition: all 0.3s ease;
-        }
-
-        input:focus, select:focus {
-            background: rgba(255, 255, 255, 0.9) !important;
-            border-color: #00CED1 !important;
-            box-shadow: 0 0 0 3px rgba(0, 206, 209, 0.2) !important;
-        }
-
-        /* Header */
-        header {
-            background: rgba(255, 255, 255, 0.8);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.3);
-        }
-
-        /* Quick Actions Grid */
-        .quick-action-btn {
-            background: rgba(255, 255, 255, 0.3);
-            backdrop-filter: blur(10px);
-            border-radius: 16px;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            transition: all 0.3s ease;
-            padding: 16px;
-        }
-
-        .quick-action-btn:hover {
-            background: rgba(255, 255, 255, 0.4);
-            transform: translateY(-3px);
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
-        }
-
-        /* Responsive Design */
-        @media (max-width: 480px) {
-            .wheel-container {
-                width: 250px;
-                height: 250px;
-            }
-            
-            .notification-panel {
-                width: 85%;
-                right: -85%;
-            }
-        }
     </style>
 </head>
-<body class="pb-24">
-    <!-- Auth Pages -->
-    <div id="auth-section" class="auth-container">
-        <div class="auth-card">
-            <!-- Login Form -->
-            <div id="login-form">
-                <h2 class="text-2xl font-bold mb-6 text-center text-gray-800">লগ ইন করুন</h2>
-                <form id="login-form-element">
-                    <div class="mb-4">
-                        <label class="block text-gray-700 mb-2">ইমেইল</label>
-                        <input type="email" id="login-email" class="w-full p-3 rounded-lg focus:border-cyan-500" required>
-                    </div>
-                    <div class="mb-6">
-                        <label class="block text-gray-700 mb-2">পাসওয়ার্ড</label>
-                        <input type="password" id="login-password" class="w-full p-3 rounded-lg focus:border-cyan-500" required>
-                    </div>
-                    <button type="submit" class="btn-primary w-full py-3 mb-4">
-                        লগ ইন
-                    </button>
-                </form>
-                <p class="text-center text-gray-600">
-                    অ্যাকাউন্ট নেই? 
-                    <a href="#" id="show-register" class="text-cyan-600 hover:underline">রেজিস্টার করুন</a>
-                </p>
+<body>
+<script type='text/javascript' src='//pl28062279.effectivegatecpm.com/be/cd/d6/becdd6ad5e5583d31fac39e165c19d3d.js'></script>
+    <div id="loading-overlay"><div class="loader"></div></div>
+
+    <div class="screen-container">
+        
+        <!-- LOGIN SCREEN -->
+        <div id="login-screen" class="screen">
+            <div class="auth-container">
+                <div class="auth-header">
+                    <h1>Welcome Back</h1>
+                    <p>Sign in to continue to Movie App</p>
+                </div>
+                <input type="email" id="login-email" class="auth-input" placeholder="Email Address">
+                <input type="password" id="login-password" class="auth-input" placeholder="Password">
+                <div style="text-align: right; margin-bottom: 20px;">
+                    <span class="auth-link" style="font-size: 14px;" onclick="navigateTo('#forgot-password-screen')">Forgot Password?</span>
+                </div>
+                <button class="auth-btn" id="btn-login-action">Sign In</button>
+                <div class="auth-footer">
+                    Don't have an account? <span class="auth-link" onclick="navigateTo('#register-screen')">Sign Up</span>
+                </div>
+                <div class="auth-footer">
+                    <span class="auth-link" style="color:var(--text-light)" onclick="navigateTo('#home-screen')">Skip for now</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- REGISTER SCREEN -->
+        <div id="register-screen" class="screen">
+            <div class="auth-container">
+                <div class="auth-header">
+                    <h1>Create Account</h1>
+                    <p>Sign up to get started</p>
+                </div>
+                <input type="text" id="reg-name" class="auth-input" placeholder="Full Name">
+                <input type="email" id="reg-email" class="auth-input" placeholder="Email Address">
+                <input type="password" id="reg-password" class="auth-input" placeholder="Password">
+                
+                <!-- Gender Selector -->
+                <select id="reg-gender" class="auth-input">
+                    <option value="" disabled selected>Select Gender</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                </select>
+
+                <button class="auth-btn" id="btn-register-action">Sign Up</button>
+                <div class="auth-footer">
+                    Already have an account? <span class="auth-link" onclick="navigateTo('#login-screen')">Sign In</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- FORGOT PASSWORD SCREEN -->
+        <div id="forgot-password-screen" class="screen">
+             <div class="page-header"><span class="back-icon" onclick="goBack()">‹</span> Back</div>
+            <div class="auth-container">
+                <div class="auth-header">
+                    <h1>Reset Password</h1>
+                    <p>Enter your email to receive a reset link</p>
+                </div>
+                <input type="email" id="reset-email" class="auth-input" placeholder="Email Address">
+                <button class="auth-btn" id="btn-reset-action">Send Reset Link</button>
+            </div>
+        </div>
+
+        <!-- HOME SCREEN -->
+        <div id="home-screen" class="screen active">
+            <header class="home-header">
+                <!-- Header Profile Pic - Hidden by default, visible only if logged in -->
+                <img id="header-profile-pic" src="" alt="Profile" class="profile-pic" onclick="handleProfileClick()">
+                <div id="header-placeholder" style="flex:1;"></div> <!-- Spacer -->
+            </header>
+            
+            <div class="slider-container">
+                <div class="slider-wrapper" id="hero-slider"></div>
+                <div class="slider-dots" id="slider-dots"></div>
             </div>
 
-            <!-- Register Form -->
-            <div id="register-form" class="hidden">
-                <h2 class="text-2xl font-bold mb-6 text-center text-gray-800">রেজিস্টার করুন</h2>
-                <form id="register-form-element">
-                    <div class="mb-4">
-                        <label class="block text-gray-700 mb-2">পুরো নাম</label>
-                        <input type="text" id="register-name" class="w-full p-3 rounded-lg focus:border-cyan-500" required>
-                    </div>
-                    <div class="mb-4">
-                        <label class="block text-gray-700 mb-2">ইমেইল</label>
-                        <input type="email" id="register-email" class="w-full p-3 rounded-lg focus:border-cyan-500" required>
-                    </div>
-                    <div class="mb-6">
-                        <label class="block text-gray-700 mb-2">পাসওয়ার্ড</label>
-                        <input type="password" id="register-password" class="w-full p-3 rounded-lg focus:border-cyan-500" required>
-                    </div>
-                    <button type="submit" class="btn-primary w-full py-3 mb-4">
-                        রেজিস্টার
+            <div class="section-header"><h2>Channels</h2><a class="see-all-link" data-category="channel">See all</a></div>
+            <div class="channel-list" id="home-channels-container"></div>
+            
+            <div class="section-header"><h2>New Movies</h2><a class="see-all-link" data-category="new">See all</a></div>
+            <div class="movies-list" id="new-movies-container"></div>
+            
+            <div class="section-header"><h2>Popular</h2><a class="see-all-link" data-category="all">See all</a></div>
+            <div class="movies-list" id="popular-movies-container"></div>
+        </div>
+
+        <!-- MENU SCREEN -->
+        <div id="menu-screen" class="screen">
+            <div class="page-header">Menu</div>
+            
+            <div class="menu-hero" onclick="navigateTo('#settings-screen')">
+                <!-- Menu Avatar - Hidden by default -->
+                <img id="menu-profile-pic" src="" class="menu-avatar">
+                <div class="menu-user-details">
+                    <h3 id="menu-user-name">Guest User</h3>
+                    <p id="menu-user-email">Sign in to sync data</p>
+                </div>
+                <div style="margin-left:auto; font-size:20px;">›</div>
+            </div>
+
+            <div class="menu-group">
+                <div class="menu-item" onclick="navigateTo('#saved-screen')">
+                    <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256"><path d="M192,24H96A16,16,0,0,0,80,40V56H64A16,16,0,0,0,48,72V224a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V40A16,16,0,0,0,192,24ZM168,224H64V72h16v56a8,8,0,0,0,12,5.66L128,120l36,13.66A8,8,0,0,0,176,128V72h16V224h-24Zm24-168H96V40h96Z"></path></svg></div>
+                    <span>My List (Saved)</span>
+                    <span class="arrow">›</span>
+                </div>
+                <div class="menu-item" onclick="navigateTo('#downloads-screen')">
+                    <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256"><path d="M208,120v64a16,16,0,0,1-16,16H64a16,16,0,0,1-16-16V120H32v64a32,32,0,0,0,32,32H192a32,32,0,0,0,32-32V120ZM120,24V128.49l-20.24-20.25a12,12,0,0,0-17,17l40,40a12,12,0,0,0,17,0l40-40a12,12,0,1,0-17-17L136,128.49V24a12,12,0,0,0-24,0Z"></path></svg></div>
+                    <span>Downloads</span>
+                    <span class="arrow">›</span>
+                </div>
+            </div>
+
+            <div class="menu-group">
+                <div class="menu-item" onclick="navigateTo('#settings-screen')">
+                    <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256"><path d="M168,88a40,40,0,1,1-40-40A40,40,0,0,1,168,88Zm65.42,86.58-25.74-14.86a88.33,88.33,0,0,0,0-27.44l25.74-14.86a12,12,0,0,0,6-10.37V91.63a12,12,0,0,0-6-10.37l-25.74-14.86a88.33,88.33,0,0,0-23.77-13.73L173.33,26.6a12,12,0,0,0-10.37-6H101a12,12,0,0,0-10.37,6L82.08,52.67a88.33,88.33,0,0,0-23.77,13.73L32.58,51.54a12,12,0,0,0-10.37,6V78.37a12,12,0,0,0,6,10.37l25.74,14.86a88.33,88.33,0,0,0,0,27.44L28.21,146a12,12,0,0,0-6,10.37v10.74a12,12,0,0,0,6,10.37l25.74,14.86a88.33,88.33,0,0,0,23.77,13.73L92.67,229.4a12,12,0,0,0,10.37,6h61.92a12,12,0,0,0,10.37-6l8.55-26.07a88.33,88.33,0,0,0,23.77-13.73l25.74,14.86a12,12,0,0,0,10.37-6V183a12,12,0,0,0-6-10.37ZM128,152a64,64,0,1,1,64-64A64.07,64.07,0,0,1,128,152Z"></path></svg></div>
+                    <span>App Settings</span>
+                    <span class="arrow">›</span>
+                </div>
+            </div>
+
+            <div class="menu-group" id="logout-group">
+                <div class="menu-item logout" onclick="handleLogout()">
+                    <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256"><path d="M112,48V36a12,12,0,0,1,12-12h80a12,12,0,0,1,12,12V220a12,12,0,0,1-12,12h-80a12,12,0,0,1-12-12v-12a12,12,0,0,1,24,0v4h72V44h-72v4a12,12,0,0,1-24,0ZM118.11,134.11,84.4,167.73a12,12,0,0,1-17-17l24-24H24a12,12,0,0,1,0-24H91.43l-24-24a12,12,0,0,1,17-17l33.71,33.72a12,12,0,0,1,0,17Z"></path></svg></div>
+                    <span>Log Out</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- SAVED SCREEN -->
+        <div id="saved-screen" class="screen">
+            <div class="page-header"><span class="back-icon" onclick="goBack()">‹</span> Saved</div>
+            <div id="saved-grid" class="listing-grid"></div>
+            <div id="saved-placeholder" class="placeholder-content"><svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256"><path d="M192,24H96A16,16,0,0,0,80,40V56H64A16,16,0,0,0,48,72V224a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V40A16,16,0,0,0,192,24ZM168,224H64V72h16v56a8,8,0,0,0,12,5.66L128,120l36,13.66A8,8,0,0,0,176,128V72h16V224h-24Zm24-168H96V40h96Z"></path></svg><p>No movies saved yet.</p></div>
+        </div>
+        
+        <!-- DOWNLOADS SCREEN -->
+        <div id="downloads-screen" class="screen">
+            <div class="page-header"><span class="back-icon" onclick="goBack()">‹</span> Downloads</div>
+            <div id="downloads-list-container" class="download-list-container"></div>
+            <div id="downloads-placeholder" class="placeholder-content"><svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256"><path d="M208,120v64a16,16,0,0,1-16,16H64a16,16,0,0,1-16-16V120H32v64a32,32,0,0,0,32,32H192a32,32,0,0,0,32-32V120ZM120,24V128.49l-20.24-20.25a12,12,0,0,0-17,17l40,40a12,12,0,0,0,17,0l40-40a12,12,0,1,0-17-17L136,128.49V24a12,12,0,0,0-24,0Z"></path></svg><p>No movies downloaded yet.</p></div>
+        </div>
+
+        <div id="settings-screen" class="screen">
+            <div class="page-header"><span class="back-icon" onclick="goBack()">‹</span> Settings</div>
+            <div style="padding: 20px;"><p>App Version: 1.0.0</p><p>Notifications: On</p></div>
+        </div>
+
+        <!-- SEARCH SCREEN -->
+        <div id="search-screen" class="screen">
+            <header class="search-header">
+                <div class="search-input-wrapper">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="#8E8E93" viewBox="0 0 256 256"><path d="M228.24,219.76l-51.38-51.38a92.21,92.21,0,1,0-8.48,8.48l51.38,51.38a6,6,0,0,0,8.48-8.48ZM44,112a68,68,0,1,1,68,68A68.08,68.08,0,0,1,44,112Z"></path></svg>
+                    <input type="text" id="search-input" class="search-input" placeholder="Search movies...">
+                </div>
+                <span onclick="goBack()" style="color:var(--primary-blue); padding: 10px; cursor: pointer;">Cancel</span>
+            </header>
+            <div id="search-results-container" class="listing-grid"></div>
+        </div>
+
+        <!-- DETAILS SCREEN -->
+        <div id="details-screen" class="screen">
+            <img id="details-bg-poster" src="" class="details-bg">
+            <div class="details-gradient"></div>
+            <div style="position:absolute; top:calc(15px + var(--safe-area-top)); left:15px; z-index:20; background:rgba(0,0,0,0.3); width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center;" onclick="goBack()">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="white" viewBox="0 0 256 256"><path d="M168.49,199.51a12,12,0,0,1-17,17l-80-80a12,12,0,0,1,0-17l80-80a12,12,0,0,1,17,17L97,128Z"></path></svg>
+            </div>
+            <div class="details-content">
+                <h1 id="details-title">Movie Title</h1>
+                <p id="details-meta" style="color:#ccc; font-size:14px;">2023 | Action | 1h 40m</p>
+                
+                <div class="action-buttons-container">
+                    <button class="main-btn" id="play-btn-main">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 256 256"><path d="M240,128a15.74,15.74,0,0,1-7.6,13.51L88.32,229.65a16,16,0,0,1-16.2.3A15.86,15.86,0,0,1,64,216.13V39.87a15.86,15.86,0,0,1,8.12-13.82,16,16,0,0,1,16.2.3L232.4,86.49A15.74,15.74,0,0,1,240,128Z"></path></svg>
+                        Play Movie
                     </button>
-                </form>
-                <p class="text-center text-gray-600">
-                    ইতিমধ্যে অ্যাকাউন্ট আছে? 
-                    <a href="#" id="show-login" class="text-cyan-600 hover:underline">লগ ইন করুন</a>
-                </p>
+                    <button class="main-btn" id="download-btn-main">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 256 256"><path d="M216,152v56a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V152a8,8,0,0,1,16,0v48H200V152a8,8,0,0,1,16,0ZM122.34,157.66a8,8,0,0,0,11.32,0l48-48a8,8,0,0,0-11.32-11.32L136,132.69V40a8,8,0,0,0-16,0v92.69L85.66,98.34a8,8,0,0,0-11.32,11.32Z"></path></svg>
+                        Download
+                    </button>
+                </div>
+
+                <div class="meta-actions">
+                    <div class="save-btn-circle" id="save-movie-btn">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="white" viewBox="0 0 256 256"><path d="M192,24H96A16,16,0,0,0,80,40V56H64A16,16,0,0,0,48,72V224a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V40A16,16,0,0,0,192,24ZM168,224H64V72h16v56a8,8,0,0,0,12,5.66L128,120l36,13.66A8,8,0,0,0,176,128V72h16V224h-24Zm24-168H96V40h96Z"></path></svg>
+                    </div>
+                    <p style="font-size: 12px; color: #aaa;">My List</p>
+                </div>
+                <p id="details-description" style="margin-top:20px; color:#aaa; font-size:13px; line-height: 1.6; max-width: 400px; margin-left: auto; margin-right: auto;"></p>
+            </div>
+        </div>
+
+        <!-- LISTING SCREEN -->
+        <div id="listing-screen" class="screen">
+            <div class="page-header"><span class="back-icon" onclick="goBack()">‹</span> <span id="listing-title">Movies</span></div>
+            <div id="listing-grid-container" class="listing-grid"></div>
+        </div>
+
+        <!-- BOTTOM NAV (Menu Icon at End) -->
+        <div class="bottom-nav-container">
+            <div class="bottom-nav">
+                <!-- Home -->
+                <div class="nav-item active" data-target="#home-screen"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path fill="currentColor" d="M224,115.55V208a16,16,0,0,1-16,16H168a16,16,0,0,1-16-16V168a8,8,0,0,0-8-8H112a8,8,0,0,0-8,8v40a16,16,0,0,1-16,16H48a16,16,0,0,1-16-16V115.55a16,16,0,0,1,5.17-11.78l96-89.6a16,16,0,0,1,21.66,0l96,89.6A16,16,0,0,1,224,115.55Z"></path></svg></div>
+                <!-- Saved -->
+                <div class="nav-item" data-target="#saved-screen"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path fill="currentColor" d="M192,24H96A16,16,0,0,0,80,40V56H64A16,16,0,0,0,48,72V224a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V40A16,16,0,0,0,192,24ZM168,224H64V72h16v56a8,8,0,0,0,12,5.66L128,120l36,13.66A8,8,0,0,0,176,128V72h16V224h-24Zm24-168H96V40h96Z"></path></svg></div>
+                <!-- Search -->
+                <div class="nav-search-btn"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 256 256"><path d="M229.66,218.34l-50.07-50.06a88.11,88.11,0,1,0-11.31,11.31l50.06,50.07a8,8,0,0,0,11.32-11.32ZM40,112a72,72,0,1,1,72,72A72.08,72.08,0,0,1,40,112Z"></path></svg></div>
+                <!-- Downloads -->
+                <div class="nav-item" data-target="#downloads-screen"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path fill="currentColor" d="M208,120v64a16,16,0,0,1-16,16H64a16,16,0,0,1-16-16V120H32v64a32,32,0,0,0,32,32H192a32,32,0,0,0,32-32V120ZM120,24V128.49l-20.24-20.25a12,12,0,0,0-17,17l40,40a12,12,0,0,0,17,0l40-40a12,12,0,1,0-17-17L136,128.49V24a12,12,0,0,0-24,0Z"></path></svg></div>
+                <!-- Menu Icon (Hamburger) -->
+                <div class="nav-item" id="nav-menu-item" onclick="handleProfileClick()">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path fill="currentColor" d="M224,128a8,8,0,0,1-8,8H40a8,8,0,0,1,0-16H216A8,8,0,0,1,224,128ZM40,72H216a8,8,0,0,0,0-16H40a8,8,0,0,0,0,16ZM216,184H40a8,8,0,0,0,0,16H216a8,8,0,0,0,0-16Z"></path></svg>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Main App (Hidden Initially) -->
-    <div id="main-app" class="hidden">
-        <!-- Header -->
-        <header class="p-4 flex justify-between items-center">
-            <div>
-                <h1 class="text-2xl font-bold text-gray-800">Click2Cash</h1>
-                <p class="text-gray-600">আপনার আয়ের পথ</p>
-            </div>
-            <div class="flex items-center space-x-4">
-                <div class="relative">
-                    <button id="notification-btn" class="text-2xl text-gray-600">
-                        <i class="fas fa-bell"></i>
-                    </button>
-                    <span id="notification-badge" class="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-5 h-5 text-xs flex items-center justify-center hidden">0</span>
-                </div>
-                <div class="text-right">
-                    <p id="user-name" class="font-semibold text-gray-800">ব্যবহারকারী</p>
-                    <p class="text-sm text-gray-600">ব্যালেন্স: ৳<span id="header-balance">0.00</span></p>
-                </div>
-            </div>
-        </header>
-
-        <!-- Main Content -->
-        <main class="p-4 max-w-lg mx-auto">
-            <!-- Home Section -->
-            <section id="home" class="content-section active">
-                <!-- Balance Card -->
-                <div class="glass-card p-6 mb-6 text-center">
-                    <h2 class="text-lg text-gray-600 mb-2">আপনার বর্তমান ব্যালেন্স</h2>
-                    <p class="text-5xl font-bold text-gray-800 tracking-widest">৳<span id="wallet-balance">0.00</span></p>
-                    <div class="mt-4 flex justify-around text-sm">
-                        <div>
-                            <p class="text-gray-600">আজকের আয়</p>
-                            <p class="font-bold text-gray-800">৳<span id="today-earnings">0.00</span></p>
-                        </div>
-                        <div>
-                            <p class="text-gray-600">রেফারেল</p>
-                            <p class="font-bold text-gray-800"><span id="referral-count">0</span> জন</p>
-                        </div>
-                    </div>
-                    <button id="withdraw-btn" class="btn-primary mt-6 w-full">
-                        <i class="fas fa-money-bill-wave mr-2"></i> টাকা তুলুন
-                    </button>
-                </div>
-
-                <!-- Quick Actions -->
-                <div class="grid grid-cols-2 gap-4 mb-6">
-                    <button id="watch-ad-btn" class="quick-action-btn flex flex-col items-center justify-center">
-                        <i class="fas fa-video text-3xl mb-2 text-cyan-500"></i>
-                        <span class="font-semibold text-gray-800">বিজ্ঞাপন দেখুন</span>
-                        <span class="text-xs text-gray-600 mt-1">৳০.১০ আয় করুন</span>
-                    </button>
-                    <button id="tasks-btn" class="quick-action-btn flex flex-col items-center justify-center">
-                        <i class="fas fa-tasks text-3xl mb-2 text-cyan-500"></i>
-                        <span class="font-semibold text-gray-800">টাস্ক করুন</span>
-                        <span class="text-xs text-gray-600 mt-1">৳০.৫০ - ৳৩.০০ আয় করুন</span>
-                    </button>
-                    <button id="spin-btn" class="quick-action-btn flex flex-col items-center justify-center">
-                        <i class="fas fa-dharmachakra text-3xl mb-2 text-cyan-500"></i>
-                        <span class="font-semibold text-gray-800">স্পিন অ্যান্ড উইন</span>
-                        <span class="text-xs text-gray-600 mt-1">৳০ - ৳১০ জিতুন</span>
-                    </button>
-                    <button id="refer-btn" class="quick-action-btn flex flex-col items-center justify-center">
-                        <i class="fas fa-user-plus text-3xl mb-2 text-cyan-500"></i>
-                        <span class="font-semibold text-gray-800">রেফার করুন</span>
-                        <span class="text-xs text-gray-600 mt-1">৳৫.০০ বোনাস পান</span>
-                    </button>
-                </div>
-
-                <!-- Recent Activity -->
-                <div class="glass-card p-6">
-                    <h3 class="text-xl font-bold mb-4 flex items-center text-gray-800">
-                        <i class="fas fa-history mr-3 text-cyan-500"></i>সাম্প্রতিক কার্যক্রম
-                    </h3>
-                    <div id="recent-activity" class="space-y-3">
-                        <!-- Activities will be populated by JavaScript -->
-                        <p class="text-center text-gray-600 py-4">কোনো সাম্প্রতিক কার্যক্রম নেই</p>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Tasks Section -->
-            <section id="tasks" class="content-section">
-                <div class="glass-card p-6">
-                    <h2 class="text-2xl font-bold mb-4 flex items-center text-gray-800">
-                        <i class="fas fa-tasks mr-3 text-cyan-500"></i>ডেইলি টাস্ক
-                    </h2>
-                    <p class="text-gray-600 mb-6">টাস্ক সম্পন্ন করে অর্থ উপার্জন করুন</p>
-                    
-                    <div id="tasks-list" class="space-y-4">
-                        <!-- Tasks will be populated by JavaScript -->
-                    </div>
-                </div>
-            </section>
-
-            <!-- Spin Section -->
-            <section id="spin" class="content-section">
-                <div class="glass-card p-6 text-center">
-                    <h2 class="text-2xl font-bold mb-2 text-gray-800">স্পিন অ্যান্ড উইন</h2>
-                    <p class="text-gray-600 mb-6">আপনার আজকের স্পিন: <span id="spins-left">3</span>/3</p>
-                    
-                    <div class="wheel-container mb-6">
-                        <div class="wheel-pointer"></div>
-                        <div class="wheel" id="wheel">
-                            <div class="wheel-section" style="background-color: #ff6b6b; transform: rotate(0deg);">৳0</div>
-                            <div class="wheel-section" style="background-color: #4ecdc4; transform: rotate(60deg);">৳0.5</div>
-                            <div class="wheel-section" style="background-color: #ffd166; transform: rotate(120deg);">৳1</div>
-                            <div class="wheel-section" style="background-color: #06d6a0; transform: rotate(180deg);">৳2</div>
-                            <div class="wheel-section" style="background-color: #118ab2; transform: rotate(240deg);">৳5</div>
-                            <div class="wheel-section" style="background-color: #ef476f; transform: rotate(300deg);">৳10</div>
-                        </div>
-                    </div>
-                    
-                    <button id="spin-wheel-btn" class="btn-secondary w-full py-3 text-lg">
-                        স্পিন করুন
-                    </button>
-                    
-                    <div class="mt-6 text-left">
-                        <h3 class="font-bold mb-2 text-gray-800">পুরস্কার:</h3>
-                        <ul class="text-gray-600 space-y-1">
-                            <li>• ৳০.৫০ - ৳১০ পর্যন্ত জিততে পারেন</li>
-                            <li>• প্রতিদিন ৩ বার স্পিন করতে পারেন</li>
-                            <li>• পুরস্কার সরাসরি ব্যালেন্সে যোগ হবে</li>
-                        </ul>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Wallet Section -->
-            <section id="wallet" class="content-section">
-                <div class="glass-card p-6">
-                    <h2 class="text-2xl font-bold mb-6 flex items-center text-gray-800">
-                        <i class="fas fa-wallet mr-3 text-cyan-500"></i>আমার ওয়ালেট
-                    </h2>
-                    
-                    <div class="mb-6 p-4 bg-gradient-to-r from-cyan-100 to-cyan-200 rounded-xl">
-                        <p class="text-gray-600">মোট ব্যালেন্স</p>
-                        <p class="text-4xl font-bold my-2 text-gray-800">৳<span id="wallet-total">0.00</span></p>
-                        <p class="text-sm text-gray-600">ন্যূনতম উত্তোলন: ৳৫০.০০</p>
-                    </div>
-                    
-                    <div class="space-y-4 mb-6">
-                        <div class="flex justify-between items-center p-3 bg-white/70 rounded-lg border border-white/30">
-                            <div>
-                                <p class="font-semibold text-gray-800">আজকের আয়</p>
-                                <p class="text-sm text-gray-600">বিজ্ঞাপন, টাস্ক এবং স্পিন থেকে</p>
-                            </div>
-                            <p class="text-xl font-bold text-green-500">৳<span id="wallet-today">0.00</span></p>
-                        </div>
-                        
-                        <div class="flex justify-between items-center p-3 bg-white/70 rounded-lg border border-white/30">
-                            <div>
-                                <p class="font-semibold text-gray-800">রেফারেল আয়</p>
-                                <p class="text-sm text-gray-600">রেফারেল থেকে প্রাপ্ত বোনাস</p>
-                            </div>
-                            <p class="text-xl font-bold text-cyan-500">৳<span id="wallet-referral">0.00</span></p>
-                        </div>
-                    </div>
-                    
-                    <button id="wallet-withdraw-btn" class="btn-primary w-full py-3">
-                        <i class="fas fa-money-bill-wave mr-2"></i> টাকা উত্তোলন করুন
-                    </button>
-                </div>
-            </section>
-
-            <!-- Profile Section -->
-            <section id="profile" class="content-section">
-                <div class="glass-card p-6">
-                    <h2 class="text-2xl font-bold mb-6 flex items-center text-gray-800">
-                        <i class="fas fa-user mr-3 text-cyan-500"></i>আমার প্রোফাইল
-                    </h2>
-                    
-                    <div class="flex items-center mb-6">
-                        <div class="w-16 h-16 rounded-full bg-gradient-to-r from-cyan-500 to-cyan-300 flex items-center justify-center text-white text-2xl font-bold mr-4">
-                            <i class="fas fa-user"></i>
-                        </div>
-                        <div>
-                            <p id="profile-name" class="font-bold text-xl text-gray-800">ব্যবহারকারী</p>
-                            <p class="text-gray-600">সদস্য since <span id="join-date">আজ</span></p>
-                        </div>
-                    </div>
-                    
-                    <div class="space-y-4 mb-6">
-                        <div class="p-4 bg-white/70 rounded-lg border border-white/30">
-                            <p class="text-gray-600 mb-1">আপনার রেফারেল লিঙ্ক</p>
-                            <div class="flex">
-                                <input type="text" id="referral-link" class="flex-grow p-2 bg-gray-100 rounded-l-lg border border-gray-300" readonly>
-                                <button id="copy-link" class="bg-cyan-500 text-white px-4 rounded-r-lg">
-                                    <i class="fas fa-copy"></i>
-                                </button>
-                            </div>
-                            <p class="text-sm text-gray-600 mt-2">এই লিঙ্ক শেয়ার করুন এবং প্রতিটি রেফারেলের জন্য ৳৫ পান</p>
-                        </div>
-                        
-                        <div class="grid grid-cols-2 gap-4">
-                            <div class="p-3 bg-white/70 rounded-lg border border-white/30 text-center">
-                                <p class="text-2xl font-bold text-cyan-500" id="profile-tasks">0</p>
-                                <p class="text-gray-600 text-sm">সম্পন্ন টাস্ক</p>
-                            </div>
-                            <div class="p-3 bg-white/70 rounded-lg border border-white/30 text-center">
-                                <p class="text-2xl font-bold text-green-500" id="profile-referrals">0</p>
-                                <p class="text-gray-600 text-sm">রেফারেল</p>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <button id="logout-btn" class="w-full py-3 bg-red-500 hover:bg-red-600 text-white rounded-lg font-bold transition-colors">
-                        <i class="fas fa-sign-out-alt mr-2"></i>লগ আউট
-                    </button>
-                </div>
-            </section>
-        </main>
-
-        <!-- Bottom Navigation -->
-        <nav class="bottom-nav">
-            <a href="#" class="nav-item active" data-section="home">
-                <i class="fas fa-home"></i>
-                <span>হোম</span>
-            </a>
-            <a href="#" class="nav-item" data-section="tasks">
-                <i class="fas fa-tasks"></i>
-                <span>টাস্ক</span>
-            </a>
-            <a href="#" class="nav-item" data-section="spin">
-                <i class="fas fa-dharmachakra"></i>
-                <span>স্পিন</span>
-            </a>
-            <a href="#" class="nav-item" data-section="wallet">
-                <i class="fas fa-wallet"></i>
-                <span>ওয়ালেট</span>
-            </a>
-            <a href="#" class="nav-item" data-section="profile">
-                <i class="fas fa-user"></i>
-                <span>প্রোফাইল</span>
-            </a>
-        </nav>
-
-        <!-- Withdraw Modal -->
-        <div id="withdraw-modal" class="modal">
-            <div class="modal-content">
-                <h2 class="text-xl font-bold mb-4 text-center text-gray-800">টাকা উত্তোলন করুন</h2>
-                <form id="withdraw-form">
-                    <div class="mb-4">
-                        <label class="block text-gray-700 mb-2">আপনার নাম</label>
-                        <input type="text" id="withdraw-name" class="w-full p-3 rounded-lg focus:border-cyan-500" required>
-                    </div>
-                    <div class="mb-4">
-                        <label class="block text-gray-700 mb-2">পেমেন্ট মেথড</label>
-                        <select id="withdraw-method" class="w-full p-3 rounded-lg focus:border-cyan-500" required>
-                            <option value="bKash">bKash</option>
-                            <option value="Nagad">Nagad</option>
-                            <option value="Rocket">Rocket</option>
-                        </select>
-                    </div>
-                    <div class="mb-4">
-                        <label class="block text-gray-700 mb-2">মোবাইল নম্বর</label>
-                        <input type="text" id="withdraw-number" class="w-full p-3 rounded-lg focus:border-cyan-500" required>
-                    </div>
-                    <div class="mb-4">
-                        <label class="block text-gray-700 mb-2">পরিমাণ (৳)</label>
-                        <input type="text" id="withdraw-amount" class="w-full p-3 rounded-lg focus:border-cyan-500" readonly>
-                    </div>
-                    <div class="flex justify-between mt-6">
-                        <button type="button" id="cancel-withdraw" class="px-4 py-2 bg-gray-300 text-gray-800 rounded-lg">বাতিল</button>
-                        <button type="submit" class="px-4 py-2 bg-green-500 text-white rounded-lg">জমা দিন</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-
-        <!-- Notification Panel -->
-        <div class="notification-panel">
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="text-xl font-bold text-gray-800">নোটিফিকেশন</h2>
-                <button id="close-notification" class="text-2xl text-gray-600">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <div id="notification-list" class="space-y-4">
-                <!-- Notifications will be populated by JavaScript -->
-                <p class="text-center text-gray-600 py-8">কোনো নোটিফিকেশন নেই</p>
-            </div>
-        </div>
-    </div>
-
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
     <script>
-        // Firebase Configuration
         const firebaseConfig = {
-            apiKey: "AIzaSyAdqZJ_ydfy05zqmJ4uauR_HluPTJDTv3s",
-            authDomain: "click2cash-89436.firebaseapp.com",
-            databaseURL: "https://click2cash-89436-default-rtdb.firebaseio.com",
-            projectId: "click2cash-89436",
-            storageBucket: "click2cash-89436.firebasestorage.app",
-            messagingSenderId: "884760732782",
-            appId: "1:884760732782:web:44680c2b4eabd2ae1cb27f"
-        };
-
-        // Firebase Initialization
+  apiKey: "AIzaSyD-OOlhfoh1tJYKJl0hSCG2KxR_OL-tJu0",
+  authDomain: "all-movie-8a42e.firebaseapp.com",
+  databaseURL: "https://all-movie-8a42e-default-rtdb.firebaseio.com",
+  projectId: "all-movie-8a42e",
+  storageBucket: "all-movie-8a42e.firebasestorage.app",
+  messagingSenderId: "774580630062",
+  appId: "1:774580630062:web:854a52d19a3984ad7165bf"
+};
         firebase.initializeApp(firebaseConfig);
-        const auth = firebase.auth();
         const db = firebase.firestore();
+        const auth = firebase.auth();
 
-        // Global Variables
         let currentUser = null;
-        let userData = null;
-        let userListener = null;
+        let movies = {};
+        let channels = [];
+        let savedMovieIds = JSON.parse(localStorage.getItem('savedMovies')) || [];
+        let downloadedMovies = JSON.parse(localStorage.getItem('downloadedMovies')) || [];
 
-        // Authentication Functions
-        function showAuthSection() {
-            document.getElementById('auth-section').classList.remove('hidden');
-            document.getElementById('main-app').classList.add('hidden');
-        }
-
-        function showMainApp() {
-            document.getElementById('auth-section').classList.add('hidden');
-            document.getElementById('main-app').classList.remove('hidden');
-        }
-
-        function switchToRegister() {
-            document.getElementById('login-form').classList.add('hidden');
-            document.getElementById('register-form').classList.remove('hidden');
-        }
-
-        function switchToLogin() {
-            document.getElementById('register-form').classList.add('hidden');
-            document.getElementById('login-form').classList.remove('hidden');
-        }
-
-        // User Data Management with Firebase
-        async function initializeUserData(user) {
-            const userRef = db.collection('users').doc(user.uid);
-            const userDoc = await userRef.get();
+        document.addEventListener('DOMContentLoaded', async () => {
+            const loadingOverlay = document.getElementById('loading-overlay');
             
-            if (!userDoc.exists) {
-                // Check for referral
-                const urlParams = new URLSearchParams(window.location.search);
-                const ref = urlParams.get('ref');
-                
-                const newUserData = {
-                    uid: user.uid,
-                    email: user.email,
-                    name: user.displayName || 'ব্যবহারকারী',
-                    balance: 0,
-                    todayEarnings: 0,
-                    totalEarnings: 0,
-                    referralEarnings: 0,
-                    adsCompleted: 0,
-                    tasksCompleted: [],
-                    spinsUsed: 0,
-                    lastSpinDate: null,
-                    referrals: 0,
-                    joinDate: new Date().toISOString(),
-                    referredBy: ref || null
-                };
-                
-                await userRef.set(newUserData);
-                
-                // If referred, give bonus to referrer
-                if (ref) {
-                    const referrerRef = db.collection('users').doc(ref);
-                    const referrerDoc = await referrerRef.get();
-                    
-                    if (referrerDoc.exists) {
-                        await referrerRef.update({
-                            balance: firebase.firestore.FieldValue.increment(5),
-                            referralEarnings: firebase.firestore.FieldValue.increment(5),
-                            referrals: firebase.firestore.FieldValue.increment(1)
-                        });
-                        
-                        // Add notification for referrer
-                        await db.collection('notifications').add({
-                            userId: ref,
-                            title: 'রেফারেল বোনাস!',
-                            message: `আপনার রেফারেল লিঙ্ক ব্যবহার করে একজন নতুন ব্যবহারকারী যোগদান করেছেন। ৳৫.০০ বোনাস পেয়েছেন!`,
-                            timestamp: new Date().toISOString(),
-                            read: false
-                        });
-                    }
-                }
-                
-                return newUserData;
-            } else {
-                return userDoc.data();
-            }
-        }
-
-        function listenToUserData(uid) {
-            if (userListener) userListener(); // Remove previous listener
-            
-            userListener = db.collection('users').doc(uid).onSnapshot((doc) => {
-                if (doc.exists) {
-                    userData = doc.data();
-                    updateUI();
-                }
+            auth.onAuthStateChanged(user => {
+                currentUser = user;
+                updateMenuUI(user);
             });
-        }
 
-        // Update UI Functions
-        function updateUI() {
-            if (!userData) return;
-            
-            // Update balance and earnings
-            document.getElementById('wallet-balance').textContent = userData.balance.toFixed(2);
-            document.getElementById('header-balance').textContent = userData.balance.toFixed(2);
-            document.getElementById('today-earnings').textContent = userData.todayEarnings.toFixed(2);
-            document.getElementById('referral-count').textContent = userData.referrals;
-            
-            // Update wallet section
-            document.getElementById('wallet-total').textContent = userData.balance.toFixed(2);
-            document.getElementById('wallet-today').textContent = userData.todayEarnings.toFixed(2);
-            document.getElementById('wallet-referral').textContent = userData.referralEarnings.toFixed(2);
-            
-            // Update profile section
-            document.getElementById('profile-name').textContent = userData.name;
-            document.getElementById('user-name').textContent = userData.name;
-            document.getElementById('join-date').textContent = new Date(userData.joinDate).toLocaleDateString('bn-BD');
-            document.getElementById('profile-tasks').textContent = userData.tasksCompleted.length;
-            document.getElementById('profile-referrals').textContent = userData.referrals;
-            
-            // Update referral link
-            document.getElementById('referral-link').value = window.location.origin + window.location.pathname + '?ref=' + currentUser.uid;
-            
-            // Update spins left
-            const today = new Date().toDateString();
-            if (userData.lastSpinDate !== today) {
-                // Reset spins for new day
-                db.collection('users').doc(currentUser.uid).update({
-                    spinsUsed: 0,
-                    lastSpinDate: today
-                });
-            }
-            document.getElementById('spins-left').textContent = 3 - userData.spinsUsed;
-            
-            // Disable spin button if no spins left
-            if (userData.spinsUsed >= 3) {
-                document.getElementById('spin-wheel-btn').disabled = true;
-                document.getElementById('spin-wheel-btn').classList.add('opacity-50');
-            } else {
-                document.getElementById('spin-wheel-btn').disabled = false;
-                document.getElementById('spin-wheel-btn').classList.remove('opacity-50');
-            }
-            
-            // Disable withdraw button if balance < 50
-            if (userData.balance < 50) {
-                document.getElementById('withdraw-btn').disabled = true;
-                document.getElementById('withdraw-btn').classList.add('opacity-50');
-                document.getElementById('wallet-withdraw-btn').disabled = true;
-                document.getElementById('wallet-withdraw-btn').classList.add('opacity-50');
-            } else {
-                document.getElementById('withdraw-btn').disabled = false;
-                document.getElementById('withdraw-btn').classList.remove('opacity-50');
-                document.getElementById('wallet-withdraw-btn').disabled = false;
-                document.getElementById('wallet-withdraw-btn').classList.remove('opacity-50');
-            }
-            
-            // Update tasks list
-            updateTasksList();
-            
-            // Update recent activities
-            updateRecentActivities();
-            
-            // Update notifications
-            updateNotifications();
-        }
-
-        async function updateTasksList() {
-            const tasksList = document.getElementById('tasks-list');
-            tasksList.innerHTML = '';
-            
-            const tasksSnapshot = await db.collection('tasks').where('status', '==', 'active').get();
-            
-            if (tasksSnapshot.empty) {
-                tasksList.innerHTML = '<p class="text-center text-gray-600 py-4">কোনো টাস্ক নেই</p>';
-                return;
-            }
-            
-            const today = new Date().toDateString();
-            
-            tasksSnapshot.forEach(doc => {
-                const task = doc.data();
-                const isCompleted = userData.tasksCompleted.includes(doc.id + '_' + today);
-                
-                const taskElement = document.createElement('div');
-                taskElement.className = 'task-item';
-                taskElement.innerHTML = `
-                    <div class="flex items-center">
-                        <i class="${task.icon || 'fas fa-tasks'} text-cyan-500 text-2xl mr-4"></i>
-                        <div>
-                            <p class="font-semibold text-gray-800">${task.name}</p>
-                            <p class="text-sm text-green-500">পুরস্কার: ৳${task.reward.toFixed(2)}</p>
-                        </div>
-                    </div>
-                    <button class="task-btn ${isCompleted ? 'bg-gray-400' : 'bg-green-500'} text-white px-4 py-2 rounded-md text-sm font-bold" 
-                            data-id="${doc.id}" data-reward="${task.reward}" ${isCompleted ? 'disabled' : ''}>
-                        ${isCompleted ? 'সম্পন্ন' : 'করুন'}
-                    </button>
-                `;
-                tasksList.appendChild(taskElement);
-            });
-        }
-
-        async function updateRecentActivities() {
-            const activitiesContainer = document.getElementById('recent-activity');
-            activitiesContainer.innerHTML = '';
-            
-            // Fixed query without composite index requirement
-            const activitiesSnapshot = await db.collection('activities')
-                .where('userId', '==', currentUser.uid)
-                .get();
-            
-            if (activitiesSnapshot.empty) {
-                activitiesContainer.innerHTML = '<p class="text-center text-gray-600 py-4">কোনো সাম্প্রতিক কার্যক্রম নেই</p>';
-                return;
-            }
-            
-            // Sort activities by timestamp manually
-            const activities = [];
-            activitiesSnapshot.forEach(doc => {
-                activities.push({ id: doc.id, ...doc.data() });
-            });
-            
-            activities.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-            
-            // Display only the latest 5 activities
-            const latestActivities = activities.slice(0, 5);
-            
-            latestActivities.forEach(activity => {
-                const activityElement = document.createElement('div');
-                activityElement.className = 'flex justify-between items-center p-3 bg-white/70 rounded-lg border border-white/30';
-                activityElement.innerHTML = `
-                    <div>
-                        <p class="font-semibold text-gray-800">${activity.title}</p>
-                        <p class="text-sm text-gray-600">${new Date(activity.timestamp).toLocaleString('bn-BD')}</p>
-                    </div>
-                    <p class="text-green-500 font-bold">+৳${activity.amount.toFixed(2)}</p>
-                `;
-                activitiesContainer.appendChild(activityElement);
-            });
-        }
-
-        async function updateNotifications() {
-            const notificationList = document.getElementById('notification-list');
-            notificationList.innerHTML = '';
-            
-            // Fixed query without composite index requirement
-            const notificationsSnapshot = await db.collection('notifications')
-                .where('userId', '==', currentUser.uid)
-                .get();
-            
-            if (notificationsSnapshot.empty) {
-                notificationList.innerHTML = '<p class="text-center text-gray-600 py-8">কোনো নোটিফিকেশন নেই</p>';
-                return;
-            }
-            
-            // Sort notifications by timestamp manually
-            const notifications = [];
-            notificationsSnapshot.forEach(doc => {
-                notifications.push({ id: doc.id, ...doc.data() });
-            });
-            
-            notifications.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-            
-            // Display only the latest 10 notifications
-            const latestNotifications = notifications.slice(0, 10);
-            
-            let unreadCount = 0;
-            
-            latestNotifications.forEach(notification => {
-                if (!notification.read) unreadCount++;
-                
-                const notificationElement = document.createElement('div');
-                notificationElement.className = `p-4 rounded-lg border ${notification.read ? 'bg-white/70 border-white/30' : 'bg-cyan-50 border-cyan-200'}`;
-                notificationElement.innerHTML = `
-                    <h3 class="font-bold mb-1 text-gray-800">${notification.title}</h3>
-                    <p class="text-sm text-gray-600 mb-2">${notification.message}</p>
-                    <p class="text-xs text-gray-500">${new Date(notification.timestamp).toLocaleString('bn-BD')}</p>
-                `;
-                notificationList.appendChild(notificationElement);
-                
-                // Mark as read when displayed in panel
-                if (!notification.read) {
-                    db.collection('notifications').doc(notification.id).update({ read: true });
-                }
-            });
-            
-            // Update notification badge
-            const badge = document.getElementById('notification-badge');
-            if (unreadCount > 0) {
-                badge.textContent = unreadCount;
-                badge.classList.remove('hidden');
-            } else {
-                badge.classList.add('hidden');
-            }
-        }
-
-        async function addActivity(title, amount) {
-            await db.collection('activities').add({
-                userId: currentUser.uid,
-                title,
-                amount,
-                timestamp: new Date().toISOString()
-            });
-        }
-
-        async function addNotification(title, message) {
-            await db.collection('notifications').add({
-                userId: currentUser.uid,
-                title,
-                message,
-                timestamp: new Date().toISOString(),
-                read: false
-            });
-        }
-
-        // Navigation
-        document.querySelectorAll('.nav-item').forEach(item => {
-            item.addEventListener('click', function(e) {
-                e.preventDefault();
-                
-                // Remove active class from all nav items
-                document.querySelectorAll('.nav-item').forEach(nav => {
-                    nav.classList.remove('active');
-                });
-                
-                // Add active class to clicked nav item
-                this.classList.add('active');
-                
-                // Hide all content sections
-                document.querySelectorAll('.content-section').forEach(section => {
-                    section.classList.remove('active');
-                });
-                
-                // Show selected content section
-                const sectionId = this.getAttribute('data-section');
-                document.getElementById(sectionId).classList.add('active');
-            });
-        });
-
-        // Authentication Event Listeners
-        document.getElementById('show-register').addEventListener('click', function(e) {
-            e.preventDefault();
-            switchToRegister();
-        });
-
-        document.getElementById('show-login').addEventListener('click', function(e) {
-            e.preventDefault();
-            switchToLogin();
-        });
-
-        document.getElementById('login-form-element').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const email = document.getElementById('login-email').value;
-            const password = document.getElementById('login-password').value;
-            
             try {
-                const userCredential = await auth.signInWithEmailAndPassword(email, password);
-                console.log('User logged in:', userCredential.user);
-            } catch (error) {
-                alert('লগ ইন ব্যর্থ: ' + error.message);
-            }
-        });
+                const movieSnap = await db.collection('movies').get();
+                movieSnap.forEach(doc => movies[doc.id] = doc.data());
 
-        document.getElementById('register-form-element').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const name = document.getElementById('register-name').value;
-            const email = document.getElementById('register-email').value;
-            const password = document.getElementById('register-password').value;
-            
-            try {
-                const userCredential = await auth.createUserWithEmailAndPassword(email, password);
-                await userCredential.user.updateProfile({ displayName: name });
-                console.log('User registered:', userCredential.user);
-            } catch (error) {
-                alert('রেজিস্ট্রেশন ব্যর্থ: ' + error.message);
-            }
-        });
-
-        // Watch Ad Functionality - FIXED
-        document.getElementById('watch-ad-btn').addEventListener('click', async function() {
-            try {
-                // Get active ad from database
-                const adsSnapshot = await db.collection('ads').where('status', '==', 'active').limit(1).get();
+                const channelSnap = await db.collection('channels').get();
+                channelSnap.forEach(doc => channels.push({id: doc.id, ...doc.data()}));
                 
-                if (adsSnapshot.empty) {
-                    alert('বর্তমানে কোনো বিজ্ঞাপন নেই। পরে আবার চেষ্টা করুন।');
+                initializeApp(movies, channels);
+                loadingOverlay.style.opacity = 0;
+                setTimeout(() => loadingOverlay.style.display = 'none', 300);
+            } catch(e) { 
+                console.error("Error loading data:", e); 
+                loadingOverlay.innerHTML = 'Error Loading Content'; 
+            }
+        });
+
+        function initializeApp(data, channelData) {
+            let history = ['#home-screen'];
+            
+            window.navigateTo = (id) => {
+                document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+                const targetScreen = document.querySelector(id);
+                if (targetScreen) targetScreen.classList.add('active');
+                
+                document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+                const activeNav = document.querySelector(`.nav-item[data-target="${id}"]`);
+                if(activeNav) activeNav.classList.add('active');
+                
+                // Handle Menu Item Active State
+                if(id === '#menu-screen') {
+                     document.getElementById('nav-menu-item').classList.add('active');
+                }
+
+                if(id !== history[history.length-1]) history.push(id);
+                
+                if(id === '#saved-screen') renderSaved();
+                if(id === '#downloads-screen') renderDownloads();
+            };
+            
+            window.goBack = () => {
+                if(history.length > 1) history.pop();
+                navigateTo(history[history.length-1]);
+            };
+
+            window.handleProfileClick = () => navigateTo(currentUser ? '#menu-screen' : '#login-screen');
+
+            document.getElementById('btn-login-action').onclick = async () => {
+                const email = document.getElementById('login-email').value;
+                const pass = document.getElementById('login-password').value;
+                try {
+                    await auth.signInWithEmailAndPassword(email, pass);
+                    navigateTo('#home-screen');
+                } catch(e) { alert("Login Failed: " + e.message); }
+            };
+
+            document.getElementById('btn-register-action').onclick = async () => {
+                const name = document.getElementById('reg-name').value;
+                const email = document.getElementById('reg-email').value;
+                const pass = document.getElementById('reg-password').value;
+                const gender = document.getElementById('reg-gender').value;
+
+                if (!name || !email || !pass || !gender) {
+                    alert("Please fill all fields including gender.");
                     return;
                 }
-                
-                const adDoc = adsSnapshot.docs[0];
-                const ad = adDoc.data();
-                
-                // Open ad link in new tab
-                const adWindow = window.open(ad.link, '_blank');
-                
-                // Add reward after a short delay (simulating ad completion)
-                setTimeout(async function() {
-                    await db.collection('users').doc(currentUser.uid).update({
-                        balance: firebase.firestore.FieldValue.increment(ad.reward),
-                        todayEarnings: firebase.firestore.FieldValue.increment(ad.reward),
-                        totalEarnings: firebase.firestore.FieldValue.increment(ad.reward),
-                        adsCompleted: firebase.firestore.FieldValue.increment(1)
-                    });
-                    
-                    // Update ad clicks
-                    await db.collection('ads').doc(adDoc.id).update({
-                        clicks: firebase.firestore.FieldValue.increment(1)
-                    });
-                    
-                    await addActivity('বিজ্ঞাপন দেখেছেন', ad.reward);
-                    await addNotification('বিজ্ঞাপন দেখেছেন', `আপনি একটি বিজ্ঞাপন দেখেছেন এবং ৳${ad.reward.toFixed(2)} পেয়েছেন!`);
-                    
-                    // Show success message
-                    alert(`বিজ্ঞাপন দেখার জন্য আপনাকে ধন্যবাদ! ৳${ad.reward.toFixed(2)} যোগ করা হয়েছে।`);
-                }, 5000); // 5 seconds delay for demo
-            } catch (error) {
-                alert('বিজ্ঞাপন দেখতে সমস্যা হয়েছে: ' + error.message);
-            }
-        });
 
-        // Task Completion
-        document.addEventListener('click', async function(e) {
-            if (e.target.classList.contains('task-btn')) {
-                const taskId = e.target.getAttribute('data-id');
-                const reward = parseFloat(e.target.getAttribute('data-reward'));
-                
-                // Check if task already completed today
-                const today = new Date().toDateString();
-                const taskKey = taskId + '_' + today;
-                
-                if (!userData.tasksCompleted.includes(taskKey)) {
-                    await db.collection('users').doc(currentUser.uid).update({
-                        balance: firebase.firestore.FieldValue.increment(reward),
-                        todayEarnings: firebase.firestore.FieldValue.increment(reward),
-                        totalEarnings: firebase.firestore.FieldValue.increment(reward),
-                        tasksCompleted: firebase.firestore.FieldValue.arrayUnion(taskKey)
+                try {
+                    const res = await auth.createUserWithEmailAndPassword(email, pass);
+                    const avatarType = gender === 'female' ? 'girl' : 'boy';
+                    const avatarUrl = `https://avatar.iran.liara.run/public/${avatarType}?username=${encodeURIComponent(name)}`;
+                    
+                    // Update Auth Profile
+                    await res.user.updateProfile({ 
+                        displayName: name,
+                        photoURL: avatarUrl
                     });
                     
-                    // Update task completion count
-                    await db.collection('tasks').doc(taskId).update({
-                        completions: firebase.firestore.FieldValue.increment(1)
+                    // Write to Firestore
+                    await db.collection('users').doc(res.user.uid).set({
+                        name: name, email: email, gender: gender, uid: res.user.uid,
+                        photoUrl: avatarUrl,
+                        joinedAt: firebase.firestore.FieldValue.serverTimestamp()
                     });
                     
-                    await addActivity('টাস্ক সম্পন্ন', reward);
-                    await addNotification('টাস্ক সম্পন্ন', `আপনি একটি টাস্ক সম্পন্ন করেছেন এবং ৳${reward.toFixed(2)} পেয়েছেন!`);
+                    // Force UI Update immediately so user sees profile instantly without reload
+                    updateMenuUI(res.user);
                     
-                    // Show success message
-                    alert(`টাস্ক সম্পন্ন! ৳${reward.toFixed(2)} যোগ করা হয়েছে।`);
+                    navigateTo('#home-screen');
+                } catch(e) { alert("Registration Failed: " + e.message); }
+            };
+
+            document.getElementById('btn-reset-action').onclick = async () => {
+                const email = document.getElementById('reset-email').value;
+                try {
+                    await auth.sendPasswordResetEmail(email);
+                    alert("Password reset link sent to " + email);
+                    goBack();
+                } catch(e) { alert("Error: " + e.message); }
+            };
+
+            window.handleLogout = async () => {
+                await auth.signOut();
+                navigateTo('#login-screen');
+            };
+
+            // Robust UI Updater (Fetches from DB if Auth is slow)
+            async function updateMenuUI(user) {
+                const headerPic = document.getElementById('header-profile-pic');
+                const menuPic = document.getElementById('menu-profile-pic');
+                
+                if(user) {
+                    let name = user.displayName;
+                    let photo = user.photoURL;
+
+                    // Fallback: If name/photo is missing (sync lag), fetch from Firestore
+                    if(!name || !photo) {
+                        try {
+                            const doc = await db.collection('users').doc(user.uid).get();
+                            if(doc.exists) {
+                                const userData = doc.data();
+                                name = userData.name;
+                                photo = userData.photoUrl;
+                            }
+                        } catch(e) { console.log("DB Fetch error", e); }
+                    }
+
+                    // Fallback Default
+                    if(!name) name = "User";
+                    if(!photo) photo = `https://avatar.iran.liara.run/public/boy?username=${encodeURIComponent(name)}`;
+
+                    document.getElementById('menu-user-name').textContent = name;
+                    document.getElementById('menu-user-email').textContent = user.email;
+                    document.getElementById('logout-group').style.display = 'block';
+                    
+                    // Show profile pictures
+                    menuPic.src = photo;
+                    menuPic.style.display = 'block';
+                    headerPic.src = photo;
+                    headerPic.style.display = 'block';
+
                 } else {
-                    alert('আপনি ইতিমধ্যে আজ এই টাস্কটি সম্পন্ন করেছেন!');
+                    // Guest: Hide Avatar
+                    document.getElementById('menu-user-name').textContent = 'Guest User';
+                    document.getElementById('menu-user-email').textContent = 'Sign in to sync data';
+                    document.getElementById('logout-group').style.display = 'none';
+                    
+                    // Hide profile pictures for Guest
+                    menuPic.style.display = 'none';
+                    headerPic.style.display = 'none';
                 }
             }
-        });
 
-        // Spin Wheel Functionality
-        document.getElementById('spin-wheel-btn').addEventListener('click', async function() {
-            // Check if user has spins left
-            if (userData.spinsUsed >= 3) {
-                alert('আপনি আজকের সব স্পিন ব্যবহার করেছেন! আগামীকাল আবার চেষ্টা করুন।');
-                return;
+            const channelContainer = document.getElementById('home-channels-container');
+            channelContainer.innerHTML = channelData.length > 0 ? channelData.map(c => `
+                <div class="channel-item" onclick="window.open('${c.streamUrl}', '_blank')">
+                    <img src="${c.logo}" alt="${c.name}" onerror="this.style.display='none'">
+                </div>
+            `).join('') : '<p style="font-size:12px; color:#999; padding:10px;">No channels available</p>';
+
+            const sliderWrapper = document.getElementById('hero-slider');
+            const sliderDots = document.getElementById('slider-dots');
+            const sliderMovies = Object.entries(data).filter(([_, m]) => m.isSlider); 
+            if(sliderMovies.length > 0) {
+                sliderWrapper.innerHTML = sliderMovies.map(([id, m]) => `
+                    <div class="slide" onclick="openDetails('${id}')" style="background-image: url('${m.banner || m.poster}')">
+                        <div class="slide-content">
+                            <div class="slide-title">${m.title}</div>
+                            <div class="slide-genre">${m.genre}</div>
+                        </div>
+                    </div>`).join('');
+                sliderDots.innerHTML = sliderMovies.map((_, i) => `<div class="dot ${i===0?'active':''}"></div>`).join('');
+                let currentSlide = 0;
+                setInterval(() => {
+                    currentSlide = (currentSlide + 1) % sliderMovies.length;
+                    sliderWrapper.style.transform = `translateX(-${currentSlide * 100}%)`;
+                    document.querySelectorAll('.dot').forEach((d, i) => d.classList.toggle('active', i === currentSlide));
+                }, 4000);
             }
-            
-            // Disable button during spin
-            this.disabled = true;
-            
-            // Determine prize
-            const prizes = [0, 0.5, 1, 2, 5, 10];
-            const prizeIndex = Math.floor(Math.random() * prizes.length);
-            const prize = prizes[prizeIndex];
-            
-            // Calculate rotation (full rotations + prize position)
-            const fullRotations = 5; // Number of full rotations
-            const sectionAngle = 60; // Each section is 60 degrees
-            const targetRotation = fullRotations * 360 + (360 - (prizeIndex * sectionAngle)) - (sectionAngle / 2);
-            
-            // Apply rotation
-            const wheel = document.getElementById('wheel');
-            wheel.style.transform = `rotate(${targetRotation}deg)`;
-            
-            // Update user data after spin completes
-            setTimeout(async () => {
-                await db.collection('users').doc(currentUser.uid).update({
-                    balance: firebase.firestore.FieldValue.increment(prize),
-                    todayEarnings: firebase.firestore.FieldValue.increment(prize),
-                    totalEarnings: firebase.firestore.FieldValue.increment(prize),
-                    spinsUsed: firebase.firestore.FieldValue.increment(1)
-                });
+
+            const createCard = (id, m) => `<div class="movie-card" onclick="openDetails('${id}')"><div class="poster"><img src="${m.poster}" loading="lazy" alt="${m.title}"></div><div class="movie-card-info"><h3>${m.title}</h3><div class="meta"><span>${m.year}</span><span>${m.rating} ★</span></div></div></div>`;
+            document.getElementById('new-movies-container').innerHTML = Object.entries(data).filter(([_, m]) => m.isNew).map(([id, m]) => createCard(id, m)).join('');
+            document.getElementById('popular-movies-container').innerHTML = Object.entries(data).slice(0, 10).map(([id, m]) => createCard(id, m)).join('');
+
+            window.openDetails = (id) => {
+                const m = data[id];
+                document.getElementById('details-bg-poster').src = m.banner || m.poster;
+                document.getElementById('details-title').textContent = m.title;
+                document.getElementById('details-meta').textContent = `${m.year} | ${m.genre} | ${m.duration}`;
+                document.getElementById('details-description').textContent = m.description || '';
                 
-                await addActivity('স্পিন থেকে জয়', prize);
-                await addNotification('স্পিন থেকে জয়', `আপনি স্পিন থেকে ৳${prize.toFixed(2)} জিতেছেন!`);
+                document.getElementById('play-btn-main').onclick = () => m.playUrl ? window.open(m.playUrl, '_blank') : alert("Link unavailable");
                 
-                // Show prize alert
-                if (prize > 0) {
-                    alert(`অভিনন্দন! আপনি জিতেছেন: ৳${prize.toFixed(2)}`);
+                document.getElementById('download-btn-main').onclick = () => {
+                    if (!currentUser) {
+                        const confirmLogin = confirm("মুভি ডাউনলোড করার জন্য আপনাকে রেজিস্ট্রেশন বা লগইন করতে হবে। আপনি কি এখন রেজিস্ট্রেশন করতে চান?");
+                        if (confirmLogin) navigateTo('#register-screen');
+                    } else {
+                        if (m.downloadUrl) {
+                            if(!downloadedMovies.some(dm => dm.id === id)){
+                                downloadedMovies.push({id: id, ...m});
+                                localStorage.setItem('downloadedMovies', JSON.stringify(downloadedMovies));
+                                alert("Download started! Check 'Downloads' tab.");
+                            } else {
+                                alert("Already in downloads.");
+                            }
+                            window.open(m.downloadUrl, '_blank');
+                        } else {
+                            alert("Download link not available.");
+                        }
+                    }
+                };
+                
+                updateSaveButton(id);
+                document.getElementById('save-movie-btn').onclick = () => {
+                    if(savedMovieIds.includes(id)) savedMovieIds = savedMovieIds.filter(sid => sid !== id);
+                    else savedMovieIds.push(id);
+                    localStorage.setItem('savedMovies', JSON.stringify(savedMovieIds));
+                    updateSaveButton(id);
+                };
+                
+                navigateTo('#details-screen');
+            };
+
+            function updateSaveButton(id) {
+                const btn = document.getElementById('save-movie-btn');
+                if(savedMovieIds.includes(id)) { 
+                    btn.style.background = 'var(--primary-blue)'; 
+                    btn.style.borderColor = 'var(--primary-blue)';
+                } else { 
+                    btn.style.background = 'rgba(255,255,255,0.1)'; 
+                    btn.style.borderColor = 'rgba(255,255,255,0.2)';
+                }
+            }
+
+            function renderSaved() {
+                const savedContainer = document.getElementById('saved-grid');
+                const savedList = Object.entries(data).filter(([id]) => savedMovieIds.includes(id));
+                savedContainer.innerHTML = savedList.length ? savedList.map(([id, m]) => createCard(id, m)).join('') : '';
+                document.getElementById('saved-placeholder').classList.toggle('visible', !savedList.length);
+            }
+
+            function renderDownloads() {
+                const dlContainer = document.getElementById('downloads-list-container');
+                const dlPlaceholder = document.getElementById('downloads-placeholder');
+                
+                if(downloadedMovies.length === 0) {
+                    dlContainer.innerHTML = '';
+                    dlPlaceholder.classList.add('visible');
                 } else {
-                    alert('দুর্ভাগ্যবশত আপনি এইবার জিততে পারেননি। আবার চেষ্টা করুন!');
+                    dlPlaceholder.classList.remove('visible');
+                    dlContainer.innerHTML = downloadedMovies.map((m, index) => `
+                        <div class="download-card">
+                            <img src="${m.poster}" class="download-card-poster">
+                            <div class="download-card-info" onclick="openDetails('${m.id}')">
+                                <h3>${index + 1}. ${m.title}</h3>
+                                <p>${m.year} | ${m.duration}</p>
+                            </div>
+                            <div class="download-actions">
+                                <div class="delete-btn" onclick="deleteDownload('${m.id}')">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 256 256"><path d="M216,48H176V40a24,24,0,0,0-24-24H104A24,24,0,0,0,80,40v8H40a8,8,0,0,0,0,16h8V208a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V64h8a8,8,0,0,0,0-16ZM96,40a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8v8H96Zm96,168H64V64H192ZM112,104v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Zm48,0v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Z"></path></svg>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
                 }
-                
-                // Re-enable button if spins left
-                if (userData.spinsUsed < 2) { // Already incremented by 1
-                    this.disabled = false;
-                }
-            }, 4000); // Match the transition duration
-        });
-
-        // Withdraw Functionality
-        document.getElementById('withdraw-btn').addEventListener('click', showWithdrawModal);
-        document.getElementById('wallet-withdraw-btn').addEventListener('click', showWithdrawModal);
-
-        function showWithdrawModal() {
-            if (userData.balance < 50) {
-                alert('ন্যূনতম ৳50 উত্তোলন করতে হবে!');
-                return;
             }
-            
-            document.getElementById('withdraw-amount').value = userData.balance.toFixed(2);
-            document.getElementById('withdraw-modal').style.display = 'flex';
-        }
 
-        document.getElementById('withdraw-form').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const amount = userData.balance;
-            const name = document.getElementById('withdraw-name').value;
-            const method = document.getElementById('withdraw-method').value;
-            const number = document.getElementById('withdraw-number').value;
-            
-            // Create withdrawal request
-            await db.collection('withdrawals').add({
-                userId: currentUser.uid,
-                userName: userData.name,
-                amount: amount,
-                method: method,
-                number: number,
-                status: 'pending',
-                timestamp: new Date().toISOString()
+            window.deleteDownload = (id) => {
+                downloadedMovies = downloadedMovies.filter(m => m.id !== id);
+                localStorage.setItem('downloadedMovies', JSON.stringify(downloadedMovies));
+                renderDownloads();
+            };
+
+            document.querySelector('.nav-search-btn').onclick = () => navigateTo('#search-screen');
+            document.getElementById('search-input').oninput = (e) => {
+                const val = e.target.value.toLowerCase();
+                const res = Object.entries(data).filter(([_, m]) => m.title.toLowerCase().includes(val));
+                document.getElementById('search-results-container').innerHTML = res.map(([id, m]) => createCard(id, m)).join('');
+            };
+
+            document.querySelectorAll('.see-all-link').forEach(l => {
+                l.onclick = (e) => {
+                    const cat = e.target.dataset.category;
+                    const list = (cat === 'new') ? Object.entries(data).filter(([_, m]) => m.isNew) : Object.entries(data);
+                    document.getElementById('listing-grid-container').innerHTML = list.map(([id, m]) => createCard(id, m)).join('');
+                    document.getElementById('listing-title').textContent = cat === 'new' ? 'New Movies' : 'All Movies';
+                    navigateTo('#listing-screen');
+                }
             });
             
-            // Reset user balance
-            await db.collection('users').doc(currentUser.uid).update({
-                balance: 0,
-                todayEarnings: 0
-            });
-            
-            document.getElementById('withdraw-modal').style.display = 'none';
-            await addNotification('উত্তোলনের অনুরোধ', `আপনার ৳${amount.toFixed(2)} উত্তোলনের অনুরোধ পাঠানো হয়েছে। ২৪-৪৮ ঘন্টার মধ্যে পেমেন্ট করা হবে।`);
-            alert('উত্তোলনের অনুরোধ পাঠানো হয়েছে! ২৪-৪৮ ঘন্টার মধ্যে পেমেন্ট করা হবে।');
-        });
-
-        // Referral Functionality
-        document.getElementById('refer-btn').addEventListener('click', function() {
-            const referralLink = window.location.origin + window.location.pathname + '?ref=' + currentUser.uid;
-            
-            // Copy to clipboard
-            navigator.clipboard.writeText(referralLink).then(function() {
-                alert('রেফারেল লিঙ্ক কপি করা হয়েছে! শেয়ার করুন এবং প্রতিটি রেফারেলের জন্য ৳৫ পান।');
-                addNotification('রেফারেল লিঙ্ক', 'আপনার রেফারেল লিঙ্ক কপি করা হয়েছে। শেয়ার করুন এবং আয় করুন!');
-            }, function() {
-                // Fallback for older browsers
-                const tempInput = document.createElement('input');
-                tempInput.value = referralLink;
-                document.body.appendChild(tempInput);
-                tempInput.select();
-                document.execCommand('copy');
-                document.body.removeChild(tempInput);
-                alert('রেফারেল লিঙ্ক কপি করা হয়েছে! শেয়ার করুন এবং প্রতিটি রেফারেলের জন্য ৳৫ পান।');
-                addNotification('রেফারেল লিঙ্ক', 'আপনার রেফারেল লিঙ্ক কপি করা হয়েছে। শেয়ার করুন এবং আয় করুন!');
-            });
-        });
-
-        document.getElementById('copy-link').addEventListener('click', function() {
-            const referralLink = document.getElementById('referral-link');
-            referralLink.select();
-            document.execCommand('copy');
-            alert('রেফারেল লিঙ্ক কপি করা হয়েছে!');
-            addNotification('রেফারেল লিঙ্ক', 'আপনার রেফারেল লিঙ্ক কপি করা হয়েছে। শেয়ার করুন এবং আয় করুন!');
-        });
-
-        // Notification Panel
-        document.getElementById('notification-btn').addEventListener('click', function() {
-            document.querySelector('.notification-panel').classList.add('active');
-        });
-
-        document.getElementById('close-notification').addEventListener('click', function() {
-            document.querySelector('.notification-panel').classList.remove('active');
-        });
-
-        // Modal Close Functions
-        document.getElementById('cancel-withdraw').addEventListener('click', function() {
-            document.getElementById('withdraw-modal').style.display = 'none';
-        });
-
-        // Logout Functionality
-        document.getElementById('logout-btn').addEventListener('click', function() {
-            if (confirm('আপনি কি নিশ্চিত যে আপনি লগ আউট করতে চান?')) {
-                auth.signOut();
-            }
-        });
-
-        // Auth State Listener
-        auth.onAuthStateChanged(async (user) => {
-            if (user) {
-                currentUser = user;
-                userData = await initializeUserData(user);
-                listenToUserData(user.uid);
-                showMainApp();
-                
-                // Add welcome notification for new users
-                const notificationsSnapshot = await db.collection('notifications')
-                    .where('userId', '==', user.uid)
-                    .get();
-                
-                if (notificationsSnapshot.empty) {
-                    await addNotification('স্বাগতম!', 'Click2Cash-এ আপনাকে স্বাগতম! অর্থ উপার্জন শুরু করতে বিজ্ঞাপন দেখুন, টাস্ক করুন এবং স্পিন করুন।');
+            document.querySelectorAll('.nav-item').forEach(item => {
+                if(item.dataset.target) {
+                    item.onclick = () => navigateTo(item.dataset.target);
                 }
-            } else {
-                currentUser = null;
-                userData = null;
-                if (userListener) userListener();
-                showAuthSection();
-            }
-        });
-
-        // Initialize Default Tasks
-        async function initializeDefaultTasks() {
-            const tasksSnapshot = await db.collection('tasks').limit(1).get();
-            
-            if (tasksSnapshot.empty) {
-                const defaultTasks = [
-                    { name: 'ইউটিউব ভিডিও দেখুন', description: 'ইউটিউব ভিডিও দেখুন এবং পুরস্কার পান', reward: 0.5, icon: 'fab fa-youtube', color: 'text-red-500', status: 'active', completions: 0 },
-                    { name: 'ফেসবুক পেজ লাইক করুন', description: 'ফেসবুক পেজ লাইক করুন এবং পুরস্কার পান', reward: 1.0, icon: 'fab fa-facebook', color: 'text-blue-400', status: 'active', completions: 0 },
-                    { name: 'অ্যাপ ইনস্টল করুন', description: 'অ্যাপ ইনস্টল করুন এবং পুরস্কার পান', reward: 3.0, icon: 'fas fa-download', color: 'text-green-400', status: 'active', completions: 0 }
-                ];
-                
-                defaultTasks.forEach(task => {
-                    db.collection('tasks').add(task);
-                });
-            }
+            });
         }
-
-        // Initialize Default Ads
-        async function initializeDefaultAds() {
-            const adsSnapshot = await db.collection('ads').limit(1).get();
-            
-            if (adsSnapshot.empty) {
-                const defaultAds = [
-                    { name: 'গুগল বিজ্ঞাপন', link: 'https://www.google.com', reward: 0.10, icon: 'fab fa-google', status: 'active', clicks: 0, createdAt: new Date().toISOString() }
-                ];
-                
-                defaultAds.forEach(ad => {
-                    db.collection('ads').add(ad);
-                });
-            }
-        }
-
-        // Initialize App
-        document.addEventListener('DOMContentLoaded', function() {
-            initializeDefaultTasks();
-            initializeDefaultAds();
-        });
     </script>
+<script type='text/javascript' src='//pl28062257.effectivegatecpm.com/43/50/44/435044293add5958db811dcd0a63a008.js'></script>
 </body>
 </html>
